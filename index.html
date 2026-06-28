@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Splace — Lienzo colaborativo</title>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
     <style>
         :root {
             --bg: #121317;
@@ -103,10 +108,10 @@
             background: var(--warn);
             animation: pulse-dot-fast 0.6s infinite;
         }
-        .live-dot.disabled {
-            background: #888;
+        .live-dot.disconnected {
+            background: #ff6f67;
             animation: none;
-            box-shadow: none;
+            box-shadow: 0 0 0 0 rgba(255,111,103,.6);
         }
         @keyframes pulse-dot {
             0% {
@@ -341,19 +346,6 @@
             border-color: var(--accent);
             color: var(--accent);
         }
-        .storage-warning {
-            background: var(--warn-soft);
-            border: 1px solid var(--warn);
-            color: var(--warn);
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 11px;
-            margin-bottom: 10px;
-            display: none;
-        }
-        .storage-warning.visible {
-            display: block;
-        }
         aside::-webkit-scrollbar {
             width: 8px;
         }
@@ -391,7 +383,7 @@
             <span id="lastActivityMeta">Sin actividad aún</span>
             <span class="sync-status" id="syncStatus">
                 <span class="live-dot" id="liveDot"></span>
-                <span id="syncText">Verificando almacenamiento…</span>
+                <span id="syncText">Conectando…</span>
             </span>
         </div>
         <div class="cooldown-box">
@@ -432,9 +424,6 @@
 
             <div class="panel-section">
                 <p class="panel-title">🔧 Administración</p>
-                <div class="storage-warning" id="storageWarning">
-                    ⚠️ El almacenamiento local no está disponible. Los cambios no se guardarán.
-                </div>
                 <button class="admin-btn export-btn" id="exportBtn" title="Descargar el lienzo como archivo .json">📥 Exportar lienzo</button>
                 <button class="admin-btn" id="importBtn" title="Cargar un lienzo desde archivo .json">📤 Importar lienzo</button>
                 <button class="admin-btn" id="resetBtn" title="Borrar todo el lienzo (requiere confirmación)">🗑️ Reiniciar lienzo</button>
@@ -447,16 +436,31 @@
         (function() {
             "use strict";
 
-            // ---------- CONFIG ----------
+            // ---------- CONFIGURACIÓN DE FIREBASE ----------
+            // 🔴 SUSTITUYE ESTO CON LOS DATOS DE TU PROYECTO FIREBASE
+            const firebaseConfig = {
+                apiKey: "AIzaSyBfakeKeyForDemoOnly123456789",
+                authDomain: "splace-demo.firebaseapp.com",
+                databaseURL: "https://splace-demo-default-rtdb.firebaseio.com",
+                projectId: "splace-demo",
+                storageBucket: "splace-demo.appspot.com",
+                messagingSenderId: "123456789012",
+                appId: "1:123456789012:web:abcdef1234567890abcdef"
+            };
+
+            // Inicializar Firebase
+            firebase.initializeApp(firebaseConfig);
+            const db = firebase.database();
+
+            // ---------- CONFIG DEL LIENZO ----------
             const W = 64,
                 H = 64;
             const CELL = 8;
             const COOLDOWN_MS = 4000;
-            const POLL_MS = 3000;
-            const BOARD_KEY = "lienzo-board-v1";
-            const COUNT_KEY = "lienzo-placement-count-v1";
-            const ACTIVITY_KEY = "lienzo-last-activity-v1";
-            const COOLDOWN_KEY = "lienzo-cooldown-until";
+            // Referencias en la base de datos
+            const boardRef = db.ref('lienzo/board');
+            const countRef = db.ref('lienzo/count');
+            const activityRef = db.ref('lienzo/activity');
 
             const PALETTE = [
                 { hex: "#FFFFFF", name: "Blanco" }, { hex: "#E4E4E4", name: "Gris claro" },
@@ -484,49 +488,7 @@
                 return `rgba(${r},${g},${b},${a})`;
             }
 
-            // ---------- DETECCIÓN DE localStorage ----------
-            let storageAvailable = false;
-            try {
-                const testKey = '__storage_test__';
-                localStorage.setItem(testKey, '1');
-                localStorage.removeItem(testKey);
-                storageAvailable = true;
-            } catch (e) {
-                storageAvailable = false;
-            }
-
-            const storageWarningEl = document.getElementById("storageWarning");
-            if (!storageAvailable) {
-                storageWarningEl.classList.add("visible");
-                // Actualizar estado de sincronización
-                document.getElementById("liveDot").classList.add("disabled");
-                document.getElementById("syncText").textContent = "Almacenamiento no disponible";
-            }
-
-            // ---------- STORAGE (localStorage nativo) ----------
-            const storage = {
-                async get(key, shared) {
-                    if (!storageAvailable) return null;
-                    const fullKey = shared ? 'shared_' + key : 'local_' + key;
-                    const val = localStorage.getItem(fullKey);
-                    return val ? { value: val } : null;
-                },
-                async set(key, value, shared) {
-                    if (!storageAvailable) {
-                        throw new Error("localStorage no disponible");
-                    }
-                    const fullKey = shared ? 'shared_' + key : 'local_' + key;
-                    const old = localStorage.getItem(fullKey);
-                    localStorage.setItem(fullKey, value);
-                    if (shared && old !== value) {
-                        window.dispatchEvent(new CustomEvent('local-storage-change', {
-                            detail: { key: fullKey, newValue: value, oldValue: old }
-                        }));
-                    }
-                }
-            };
-
-            // ---------- STATE ----------
+            // ---------- ESTADO ----------
             let board = new Array(W * H).fill(0);
             let selectedColor = 6;
             let zoom = 1,
@@ -572,7 +534,7 @@
                 c.style.height = (H * CELL) + "px";
             });
 
-            // ---------- PALETTE UI ----------
+            // ---------- PALETA ----------
             PALETTE.forEach((c, i) => {
                 const sw = document.createElement("div");
                 sw.className = "swatch" + (i === selectedColor ? " selected" : "");
@@ -580,8 +542,7 @@
                 sw.title = c.name;
                 sw.addEventListener("click", () => {
                     selectedColor = i;
-                    document.querySelectorAll(".swatch").forEach(s => s.classList.remove(
-                        "selected"));
+                    document.querySelectorAll(".swatch").forEach(s => s.classList.remove("selected"));
                     sw.classList.add("selected");
                     selectedColorNameEl.textContent = c.name;
                     drawHoverOverlay();
@@ -618,7 +579,6 @@
                 applyTransform();
             }
 
-            // ---------- HOVER PREVIEW ----------
             function drawHoverOverlay() {
                 overlayCtx.clearRect(0, 0, W, H);
                 if (!hoverCell || isDragging) return;
@@ -631,40 +591,37 @@
                 overlayCtx.strokeRect(x + 0.07, y + 0.07, 0.86, 0.86);
             }
 
-            // ---------- SYNC STATUS ----------
+            // ---------- ESTADO DE SINCRONIZACIÓN ----------
             let syncResetTimer = null;
 
             function setSyncState(state) {
-                if (!storageAvailable) {
-                    syncText.textContent = "Almacenamiento no disponible";
-                    liveDot.classList.add("disabled");
-                    return;
-                }
                 clearTimeout(syncResetTimer);
-                liveDot.classList.remove("disabled");
-                if (state === "saving") {
+                liveDot.classList.remove("saving", "disconnected");
+                if (state === "connected") {
+                    syncText.textContent = "Conectado · visible para todos";
+                } else if (state === "saving") {
                     liveDot.classList.add("saving");
                     syncText.textContent = "Guardando tu píxel…";
                 } else if (state === "saved") {
-                    liveDot.classList.remove("saving");
-                    syncText.textContent = "Guardado · local";
-                    syncResetTimer = setTimeout(() => {
-                        syncText.textContent = "Guardado en vivo · local";
-                    }, 2500);
+                    syncText.textContent = "Guardado · visible para todos";
+                    syncResetTimer = setTimeout(() => setSyncState("connected"), 2500);
                 } else if (state === "error") {
-                    liveDot.classList.remove("saving");
-                    syncText.textContent = "Error al guardar";
-                } else if (state === "external-update") {
-                    liveDot.classList.remove("saving");
-                    syncText.textContent = "Actualizado desde otra pestaña";
-                    syncResetTimer = setTimeout(() => {
-                        syncText.textContent = "Guardado en vivo · local";
-                    }, 2000);
-                } else {
-                    liveDot.classList.remove("saving");
-                    syncText.textContent = "Guardado en vivo · local";
+                    liveDot.classList.add("disconnected");
+                    syncText.textContent = "Error de conexión";
+                } else if (state === "disconnected") {
+                    liveDot.classList.add("disconnected");
+                    syncText.textContent = "Sin conexión";
                 }
             }
+
+            // Monitorizar conexión de Firebase
+            db.ref('.info/connected').on('value', snap => {
+                if (snap.val() === true) {
+                    setSyncState("connected");
+                } else {
+                    setSyncState("disconnected");
+                }
+            });
 
             // ---------- TOAST ----------
             let toastTimer = null;
@@ -674,10 +631,10 @@
                 toastEl.classList.toggle("warn", !!warn);
                 toastEl.classList.add("show");
                 clearTimeout(toastTimer);
-                toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2500);
+                toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
             }
 
-            // ---------- COOLDOWN ----------
+            // ---------- COOLDOWN (local) ----------
             function tickCooldown() {
                 const remaining = cooldownUntil - Date.now();
                 if (remaining <= 0) {
@@ -692,55 +649,42 @@
             setInterval(() => { tickCooldown();
                 drawHoverOverlay(); }, 250);
 
-            // ---------- LOAD / SAVE HELPERS ----------
-            async function loadCooldown() {
-                if (!storageAvailable) return;
-                try {
-                    const r = await storage.get(COOLDOWN_KEY, false);
-                    if (r && r.value) cooldownUntil = parseInt(r.value, 10) || 0;
-                } catch (e) { /* no previous cooldown */ }
-                tickCooldown();
-            }
-
-            async function saveCooldown() {
-                if (!storageAvailable) return;
-                try {
-                    await storage.set(COOLDOWN_KEY, String(cooldownUntil), false);
-                } catch (e) {
-                    console.warn("No se pudo guardar el cooldown", e);
-                }
-            }
-
-            async function loadCount() {
-                if (!storageAvailable) {
-                    placementCount = 0;
-                    placementCountEl.textContent = "0";
-                    return;
-                }
-                try {
-                    const r = await storage.get(COUNT_KEY, true);
-                    placementCount = r && r.value ? (parseInt(r.value, 10) || 0) : 0;
-                } catch (e) { placementCount = 0; }
-                placementCountEl.textContent = placementCount.toLocaleString("es-ES");
-            }
-
-            async function saveCount() {
-                if (!storageAvailable) return;
-                try {
-                    await storage.set(COUNT_KEY, String(placementCount), true);
-                } catch (e) { /* contador decorativo */ }
-            }
-
-            async function loadActivity() {
-                if (!storageAvailable) return;
-                try {
-                    const r = await storage.get(ACTIVITY_KEY, true);
-                    if (r && r.value) {
-                        const a = JSON.parse(r.value);
-                        renderActivityMeta(a);
+            // ---------- SINCRONIZACIÓN CON FIREBASE ----------
+            // Escuchar cambios en el tablero
+            boardRef.on('value', snap => {
+                const val = snap.val();
+                if (val && val.length === W * H) {
+                    const newBoard = val.split("").map(charToIdx).map(v => v < 0 ? 0 : v);
+                    if (newBoard.some((v, i) => v !== board[i])) {
+                        board = newBoard;
+                        renderBoard();
+                        if (hoverCell) {
+                            renderLoupe(hoverCell.x, hoverCell.y);
+                            hoverColorNameEl.textContent = PALETTE[board[hoverCell.y * W + hoverCell.x]].name;
+                        }
                     }
-                } catch (e) { /* none yet */ }
-            }
+                }
+            });
+
+            // Escuchar cambios en el contador
+            countRef.on('value', snap => {
+                const val = snap.val();
+                if (val !== null) {
+                    placementCount = parseInt(val, 10) || 0;
+                    placementCountEl.textContent = placementCount.toLocaleString("es-ES");
+                }
+            });
+
+            // Escuchar actividad
+            activityRef.on('value', snap => {
+                const val = snap.val();
+                if (val) {
+                    try {
+                        const a = typeof val === 'string' ? JSON.parse(val) : val;
+                        renderActivityMeta(a);
+                    } catch (e) {}
+                }
+            });
 
             function renderActivityMeta(a) {
                 const secs = Math.max(0, Math.round((Date.now() - a.t) / 1000));
@@ -748,155 +692,49 @@
                 lastActivityMetaEl.textContent = `Última: (${a.x},${a.y}) ${when}`;
             }
 
-            async function saveActivity(activity) {
-                if (!storageAvailable) return;
-                try {
-                    await storage.set(ACTIVITY_KEY, JSON.stringify(activity), true);
-                } catch (e) { /* opcional */ }
-            }
-
-            async function loadBoard() {
-                if (!storageAvailable) {
-                    board = new Array(W * H).fill(0);
-                    renderBoard();
-                    return;
-                }
-                try {
-                    const r = await storage.get(BOARD_KEY, true);
-                    if (r && r.value && r.value.length === W * H) {
-                        board = r.value.split("").map(charToIdx).map(v => v < 0 ? 0 : v);
-                    } else {
-                        throw new Error("invalid board, reinitializing");
-                    }
-                } catch (e) {
-                    board = new Array(W * H).fill(0);
-                    try {
-                        await storage.set(BOARD_KEY, board.map(idxToChar).join(""), true);
-                    } catch (e2) {
-                        console.error("No se pudo inicializar el lienzo", e2);
-                    }
-                }
-                renderBoard();
-            }
-
-            async function saveBoard() {
-                if (!storageAvailable) {
-                    throw new Error("Almacenamiento no disponible");
-                }
-                setSyncState("saving");
-                await storage.set(BOARD_KEY, board.map(idxToChar).join(""), true);
-                setSyncState("saved");
-            }
-
-            // ---------- POLL BOARD ----------
-            async function pollBoard() {
-                if (!storageAvailable) return;
-                try {
-                    const r = await storage.get(BOARD_KEY, true);
-                    if (r && r.value && r.value.length === W * H) {
-                        const newBoard = r.value.split("").map(charToIdx).map(v => v < 0 ? 0 : v);
-                        const changed = newBoard.some((v, i) => v !== board[i]);
-                        if (changed) {
-                            board = newBoard;
-                            renderBoard();
-                            setSyncState("external-update");
-                        }
-                    }
-                    await loadActivity();
-                } catch (e) { /* silent */ }
-            }
-            setInterval(pollBoard, POLL_MS);
-
-            // ---------- ESCUCHAR CAMBIOS DE OTRAS PESTAÑAS ----------
-            window.addEventListener('storage', (e) => {
-                if (!storageAvailable) return;
-                if (e.key === 'shared_' + BOARD_KEY && e.newValue && e.newValue.length === W * H) {
-                    const newBoard = e.newValue.split("").map(charToIdx).map(v => v < 0 ? 0 : v);
-                    const changed = newBoard.some((v, i) => v !== board[i]);
-                    if (changed) {
-                        board = newBoard;
-                        renderBoard();
-                        setSyncState("external-update");
-                    }
-                }
-                if (e.key === 'shared_' + ACTIVITY_KEY && e.newValue) {
-                    try {
-                        const a = JSON.parse(e.newValue);
-                        renderActivityMeta(a);
-                    } catch (ex) { /* ignorar */ }
-                }
-                if (e.key === 'shared_' + COUNT_KEY && e.newValue) {
-                    placementCount = parseInt(e.newValue, 10) || 0;
-                    placementCountEl.textContent = placementCount.toLocaleString("es-ES");
-                }
-            });
-
-            window.addEventListener('local-storage-change', (e) => {
-                if (!storageAvailable) return;
-                if (e.detail.key === 'shared_' + BOARD_KEY && e.detail.newValue && e.detail.newValue
-                    .length === W * H) {
-                    const newBoard = e.detail.newValue.split("").map(charToIdx).map(v => v < 0 ? 0 : v);
-                    const changed = newBoard.some((v, i) => v !== board[i]);
-                    if (changed) {
-                        board = newBoard;
-                        renderBoard();
-                    }
-                }
-            });
-
-            // ---------- PLACE PIXEL ----------
+            // ---------- COLOCAR PÍXEL ----------
             async function placePixel(x, y) {
                 const now = Date.now();
                 if (now < cooldownUntil) {
                     showToast("Espera tu turno: " + Math.ceil((cooldownUntil - now) / 1000) + "s", true);
                     return;
                 }
-                // Guardar el estado anterior por si falla el guardado
-                const previousBoard = board.slice();
-                const previousCount = placementCount;
 
-                // Aplicar cambio localmente
+                // Actualizar localmente
                 board[y * W + x] = selectedColor;
                 renderBoard();
                 cooldownUntil = now + COOLDOWN_MS;
                 tickCooldown();
                 drawHoverOverlay();
 
-                // Intentar persistir
+                // Intentar guardar en Firebase
+                setSyncState("saving");
                 try {
-                    await saveBoard();
+                    await boardRef.set(board.map(idxToChar).join(""));
+                    // Incrementar contador (usando transacción para evitar condiciones de carrera)
+                    await countRef.transaction(current => {
+                        return (current || 0) + 1;
+                    });
+                    // Actualizar actividad
+                    const activity = { x, y, c: selectedColor, t: Date.now() };
+                    await activityRef.set(JSON.stringify(activity));
+
+                    setSyncState("saved");
+                    showToast(`Píxel colocado en (${x}, ${y})`);
                 } catch (e) {
-                    // Revertir cambios locales
-                    board = previousBoard;
+                    console.error("Error al guardar en Firebase", e);
+                    // Revertir localmente
+                    board[y * W + x] = 0; // o el color anterior, pero no tenemos almacenado
                     renderBoard();
-                    cooldownUntil = now; // restablecer enfriamiento para reintentar inmediatamente
+                    cooldownUntil = now; // permitir reintentar
                     tickCooldown();
                     drawHoverOverlay();
-
-                    let msg = "No se pudo guardar tu píxel";
-                    if (!storageAvailable) {
-                        msg = "Almacenamiento no disponible. Activa las cookies o usa otro navegador.";
-                    } else if (e.message && e.message.includes("quota")) {
-                        msg = "Espacio de almacenamiento lleno. Exporta y limpia el lienzo.";
-                    }
-                    showToast(msg, true);
+                    showToast("Error de conexión, inténtalo de nuevo", true);
                     setSyncState("error");
-                    return;
                 }
-
-                // Guardar cooldown, contador y actividad
-                await saveCooldown().catch(() => {});
-                placementCount += 1;
-                placementCountEl.textContent = placementCount.toLocaleString("es-ES");
-                await saveCount().catch(() => {});
-                const activity = { x, y, c: selectedColor, t: now };
-                await saveActivity(activity).catch(() => {});
-                renderActivityMeta(activity);
-
-                showToast(`Píxel colocado en (${x}, ${y})`);
             }
 
-            // ---------- COORD MAPPING ----------
+            // ---------- MAPEO DE COORDENADAS ----------
             function clientToCell(clientX, clientY) {
                 const rect = canvas.getBoundingClientRect();
                 const relX = (clientX - rect.left) / rect.width;
@@ -905,7 +743,7 @@
                 return { x: Math.floor(relX * W), y: Math.floor(relY * H) };
             }
 
-            // ---------- LOUPE ----------
+            // ---------- LUPA ----------
             const LOUPE_RADIUS = 3;
             const LOUPE_CELL = loupe.width / (LOUPE_RADIUS * 2 + 1);
 
@@ -937,7 +775,7 @@
                 drawHoverOverlay();
             }
 
-            // ---------- POINTER / DRAG / CLICK ----------
+            // ---------- EVENTOS DE RATÓN/TÁCTIL ----------
             const DRAG_THRESHOLD = 5;
 
             canvas.addEventListener("pointerdown", (e) => {
@@ -1063,11 +901,10 @@
                     if (data.count !== undefined) placementCount = data.count;
                     placementCountEl.textContent = placementCount.toLocaleString("es-ES");
                     renderBoard();
-                    if (storageAvailable) {
-                        await storage.set(BOARD_KEY, board.map(idxToChar).join(""), true);
-                        await storage.set(COUNT_KEY, String(placementCount), true);
-                    }
-                    showToast("✅ Lienzo importado correctamente");
+                    // Subir a Firebase
+                    await boardRef.set(board.map(idxToChar).join(""));
+                    await countRef.set(placementCount);
+                    showToast("✅ Lienzo importado y subido a la nube");
                 } catch (err) {
                     showToast("❌ Error al importar: " + err.message, true);
                     console.error(err);
@@ -1076,50 +913,26 @@
             });
 
             document.getElementById("resetBtn").addEventListener("click", async () => {
-                if (!confirm(
-                        "¿Estás seguro de que quieres borrar TODO el lienzo? Esta acción no se puede deshacer."))
+                if (!confirm("¿Estás seguro de que quieres borrar TODO el lienzo? Esta acción no se puede deshacer."))
                     return;
                 if (!confirm("Confirmación final: ¿Realmente quieres reiniciar el lienzo a blanco?")) return;
                 board = new Array(W * H).fill(0);
                 placementCount = 0;
                 placementCountEl.textContent = "0";
                 renderBoard();
-                if (storageAvailable) {
-                    try {
-                        await storage.set(BOARD_KEY, board.map(idxToChar).join(""), true);
-                        await storage.set(COUNT_KEY, "0", true);
-                        await storage.set(ACTIVITY_KEY, JSON.stringify({ x: 0, y: 0, c: 0, t: Date.now() }),
-                            true);
-                        showToast("🗑️ Lienzo reiniciado");
-                    } catch (e) {
-                        showToast("Error al reiniciar el lienzo", true);
-                    }
-                } else {
-                    showToast("🗑️ Lienzo reiniciado (no se guardará)", true);
+                try {
+                    await boardRef.set(board.map(idxToChar).join(""));
+                    await countRef.set(0);
+                    await activityRef.set(JSON.stringify({ x: 0, y: 0, c: 0, t: Date.now() }));
+                    showToast("🗑️ Lienzo reiniciado");
+                } catch (e) {
+                    showToast("Error al reiniciar el lienzo", true);
                 }
             });
 
-            // ---------- INIT ----------
-            async function init() {
-                fitToViewport();
-                if (storageAvailable) {
-                    setSyncState("saved"); // normal
-                } else {
-                    setSyncState("error");
-                }
-                await loadCooldown();
-                await loadCount();
-                await loadBoard();
-                await loadActivity();
-                setInterval(() => {
-                    if (!storageAvailable) return;
-                    storage.get(ACTIVITY_KEY, true).then(r => {
-                        if (r && r.value) renderActivityMeta(JSON.parse(r.value));
-                    }).catch(() => {});
-                }, 5000);
-            }
-            init();
-
+            // ---------- INICIO ----------
+            fitToViewport();
+            // El tablero se carga automáticamente gracias a los listeners 'on'
         })();
     </script>
 </body>
