@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Splace — Lienzo colaborativo</title>
 
-    <!-- Firebase SDKs -->
+    <!-- Firebase compat SDKs (versión 9.22.2 para navegador directo) -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
@@ -114,26 +114,14 @@
             box-shadow: 0 0 0 0 rgba(255,111,103,.6);
         }
         @keyframes pulse-dot {
-            0% {
-                box-shadow: 0 0 0 0 rgba(62, 207, 110, .5);
-            }
-            70% {
-                box-shadow: 0 0 0 6px rgba(62, 207, 110, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(62, 207, 110, 0);
-            }
+            0% { box-shadow: 0 0 0 0 rgba(62, 207, 110, .5); }
+            70% { box-shadow: 0 0 0 6px rgba(62, 207, 110, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(62, 207, 110, 0); }
         }
         @keyframes pulse-dot-fast {
-            0% {
-                box-shadow: 0 0 0 0 rgba(255, 111, 103, .6);
-            }
-            70% {
-                box-shadow: 0 0 0 5px rgba(255, 111, 103, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(255, 111, 103, 0);
-            }
+            0% { box-shadow: 0 0 0 0 rgba(255, 111, 103, .6); }
+            70% { box-shadow: 0 0 0 5px rgba(255, 111, 103, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 111, 103, 0); }
         }
         .cooldown-box {
             display: flex;
@@ -436,16 +424,16 @@
         (function() {
             "use strict";
 
-            // ---------- CONFIGURACIÓN DE FIREBASE ----------
-            // 🔴 SUSTITUYE ESTO CON LOS DATOS DE TU PROYECTO FIREBASE
+            // ---------- CONFIG DE FIREBASE ----------
             const firebaseConfig = {
-                apiKey: "AIzaSyBfakeKeyForDemoOnly123456789",
-                authDomain: "splace-demo.firebaseapp.com",
-                databaseURL: "https://splace-demo-default-rtdb.firebaseio.com",
-                projectId: "splace-demo",
-                storageBucket: "splace-demo.appspot.com",
-                messagingSenderId: "123456789012",
-                appId: "1:123456789012:web:abcdef1234567890abcdef"
+                apiKey: "AIzaSyC6QRlDHZ5M710ZPPk6bmgePNuHHEKVy1g",
+                authDomain: "splace-f8a61.firebaseapp.com",
+                databaseURL: "https://splace-f8a61-default-rtdb.europe-west1.firebasedatabase.app",
+                projectId: "splace-f8a61",
+                storageBucket: "splace-f8a61.firebasestorage.app",
+                messagingSenderId: "509262817197",
+                appId: "1:509262817197:web:3961716f1e20d20988a324",
+                measurementId: "G-WG7FSYKHR0"
             };
 
             // Inicializar Firebase
@@ -457,7 +445,6 @@
                 H = 64;
             const CELL = 8;
             const COOLDOWN_MS = 4000;
-            // Referencias en la base de datos
             const boardRef = db.ref('lienzo/board');
             const countRef = db.ref('lienzo/count');
             const activityRef = db.ref('lienzo/activity');
@@ -650,7 +637,6 @@
                 drawHoverOverlay(); }, 250);
 
             // ---------- SINCRONIZACIÓN CON FIREBASE ----------
-            // Escuchar cambios en el tablero
             boardRef.on('value', snap => {
                 const val = snap.val();
                 if (val && val.length === W * H) {
@@ -666,7 +652,6 @@
                 }
             });
 
-            // Escuchar cambios en el contador
             countRef.on('value', snap => {
                 const val = snap.val();
                 if (val !== null) {
@@ -675,7 +660,6 @@
                 }
             });
 
-            // Escuchar actividad
             activityRef.on('value', snap => {
                 const val = snap.val();
                 if (val) {
@@ -700,33 +684,25 @@
                     return;
                 }
 
-                // Actualizar localmente
                 board[y * W + x] = selectedColor;
                 renderBoard();
                 cooldownUntil = now + COOLDOWN_MS;
                 tickCooldown();
                 drawHoverOverlay();
 
-                // Intentar guardar en Firebase
                 setSyncState("saving");
                 try {
                     await boardRef.set(board.map(idxToChar).join(""));
-                    // Incrementar contador (usando transacción para evitar condiciones de carrera)
-                    await countRef.transaction(current => {
-                        return (current || 0) + 1;
-                    });
-                    // Actualizar actividad
+                    await countRef.transaction(current => (current || 0) + 1);
                     const activity = { x, y, c: selectedColor, t: Date.now() };
                     await activityRef.set(JSON.stringify(activity));
-
                     setSyncState("saved");
                     showToast(`Píxel colocado en (${x}, ${y})`);
                 } catch (e) {
                     console.error("Error al guardar en Firebase", e);
-                    // Revertir localmente
-                    board[y * W + x] = 0; // o el color anterior, pero no tenemos almacenado
+                    board[y * W + x] = 0;
                     renderBoard();
-                    cooldownUntil = now; // permitir reintentar
+                    cooldownUntil = now;
                     tickCooldown();
                     drawHoverOverlay();
                     showToast("Error de conexión, inténtalo de nuevo", true);
@@ -901,7 +877,6 @@
                     if (data.count !== undefined) placementCount = data.count;
                     placementCountEl.textContent = placementCount.toLocaleString("es-ES");
                     renderBoard();
-                    // Subir a Firebase
                     await boardRef.set(board.map(idxToChar).join(""));
                     await countRef.set(placementCount);
                     showToast("✅ Lienzo importado y subido a la nube");
@@ -932,7 +907,6 @@
 
             // ---------- INICIO ----------
             fitToViewport();
-            // El tablero se carga automáticamente gracias a los listeners 'on'
         })();
     </script>
 </body>
