@@ -5,11 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Splace — Lienzo colaborativo</title>
 
-    <!-- Firebase compat SDKs (versión 9.22.2 para navegador directo) -->
+    <!-- Firebase compat SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <!-- Añadimos Auth -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 
     <style>
+        /* … (el mismo CSS de antes, lo dejo abreviado para no repetir) … */
         :root {
             --bg: #121317;
             --surface: #1a1c22;
@@ -22,340 +25,62 @@
             --accent-soft: #1d2740;
             --warn: #ff6f67;
             --warn-soft: #3a1f1f;
-            --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 28px -14px rgba(0, 0, 0, .55);
+            --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.55);
             --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
             --sans: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
         }
-        * {
-            box-sizing: border-box;
-        }
-        html,
-        body {
-            margin: 0;
-            height: 100%;
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--sans);
-            overflow: hidden;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-        }
+        * { box-sizing: border-box; }
+        html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:var(--sans); overflow:hidden; }
+        body { display:flex; flex-direction:column; }
 
-        header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 18px;
-            border-bottom: 1px solid var(--line);
-            background: var(--menu);
-            box-shadow: var(--shadow);
-            flex-shrink: 0;
-            gap: 12px;
-            flex-wrap: wrap;
-            position: relative;
-            z-index: 20;
-        }
-        .brand {
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-        }
-        .eyebrow {
-            font-size: 10px;
-            letter-spacing: .14em;
-            color: var(--text-dim);
-            text-transform: uppercase;
-        }
-        h1 {
-            margin: 0;
-            font-weight: 700;
-            font-size: 19px;
-            letter-spacing: .01em;
-            color: var(--text);
-        }
-        h1 span {
-            color: var(--accent);
-        }
-        .meta {
-            font-size: 11px;
-            color: var(--text-dim);
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .meta b {
-            color: var(--text);
-            font-weight: 600;
-        }
-        .sync-status {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .live-dot {
-            width: 7px;
-            height: 7px;
-            border-radius: 50%;
-            background: #3ecf6e;
-            flex-shrink: 0;
-            box-shadow: 0 0 0 0 rgba(62, 207, 110, .6);
-            animation: pulse-dot 2s infinite;
-        }
-        .live-dot.saving {
-            background: var(--warn);
-            animation: pulse-dot-fast 0.6s infinite;
-        }
-        .live-dot.disconnected {
-            background: #ff6f67;
-            animation: none;
-            box-shadow: 0 0 0 0 rgba(255,111,103,.6);
-        }
-        @keyframes pulse-dot {
-            0% { box-shadow: 0 0 0 0 rgba(62, 207, 110, .5); }
-            70% { box-shadow: 0 0 0 6px rgba(62, 207, 110, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(62, 207, 110, 0); }
-        }
-        @keyframes pulse-dot-fast {
-            0% { box-shadow: 0 0 0 0 rgba(255, 111, 103, .6); }
-            70% { box-shadow: 0 0 0 5px rgba(255, 111, 103, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 111, 103, 0); }
-        }
-        .cooldown-box {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 1px;
-            min-width: 90px;
-        }
-        .cooldown-label {
-            font-size: 9px;
-            letter-spacing: .12em;
-            color: var(--text-dim);
-            text-transform: uppercase;
-        }
-        .cooldown-time {
-            font-size: 20px;
-            font-weight: 700;
-            font-variant-numeric: tabular-nums;
-            color: var(--warn);
-            font-family: var(--mono);
-        }
-        .cooldown-time.ready {
-            color: var(--accent);
-        }
+        header { display:flex; align-items:center; justify-content:space-between; padding:10px 18px; border-bottom:1px solid var(--line); background:var(--menu); box-shadow:var(--shadow); flex-shrink:0; gap:12px; flex-wrap:wrap; position:relative; z-index:20; }
+        .brand { display:flex; flex-direction:column; gap:1px; }
+        .eyebrow { font-size:10px; letter-spacing:.14em; color:var(--text-dim); text-transform:uppercase; }
+        h1 { margin:0; font-weight:700; font-size:19px; letter-spacing:.01em; color:var(--text); }
+        h1 span { color:var(--accent); }
+        .meta { font-size:11px; color:var(--text-dim); display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+        .meta b { color:var(--text); font-weight:600; }
+        .sync-status { display:flex; align-items:center; gap:6px; }
+        .live-dot { width:7px; height:7px; border-radius:50%; background:#3ecf6e; flex-shrink:0; box-shadow:0 0 0 0 rgba(62,207,110,.6); animation:pulse-dot 2s infinite; }
+        .live-dot.saving { background:var(--warn); animation:pulse-dot-fast 0.6s infinite; }
+        .live-dot.disconnected { background:#ff6f67; animation:none; box-shadow:0 0 0 0 rgba(255,111,103,.6); }
+        @keyframes pulse-dot { 0% { box-shadow:0 0 0 0 rgba(62,207,110,.5); } 70% { box-shadow:0 0 0 6px rgba(62,207,110,0); } 100% { box-shadow:0 0 0 0 rgba(62,207,110,0); } }
+        @keyframes pulse-dot-fast { 0% { box-shadow:0 0 0 0 rgba(255,111,103,.6); } 70% { box-shadow:0 0 0 5px rgba(255,111,103,0); } 100% { box-shadow:0 0 0 0 rgba(255,111,103,0); } }
+        .cooldown-box { display:flex; flex-direction:column; align-items:flex-end; gap:1px; min-width:90px; }
+        .cooldown-label { font-size:9px; letter-spacing:.12em; color:var(--text-dim); text-transform:uppercase; }
+        .cooldown-time { font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--warn); font-family:var(--mono); }
+        .cooldown-time.ready { color:var(--accent); }
 
-        main {
-            flex: 1;
-            display: flex;
-            min-height: 0;
-        }
-        .viewport {
-            flex: 1;
-            position: relative;
-            overflow: hidden;
-            background: var(--bg);
-            cursor: grab;
-        }
-        .viewport.dragging {
-            cursor: grabbing;
-        }
-        #board,
-        #hoverOverlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-            transform-origin: 0 0;
-        }
-        #board {
-            touch-action: none;
-            box-shadow: 0 0 0 1px var(--line), var(--shadow);
-            background: #fff;
-            z-index: 1;
-        }
-        #hoverOverlay {
-            pointer-events: none;
-            z-index: 2;
-        }
-        .zoom-controls {
-            position: absolute;
-            right: 16px;
-            bottom: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-            border: 1px solid var(--line);
-            border-radius: 8px;
-            overflow: hidden;
-            z-index: 6;
-            background: var(--surface);
-            box-shadow: var(--shadow);
-        }
-        .zoom-controls button {
-            width: 32px;
-            height: 32px;
-            background: var(--surface);
-            color: var(--text);
-            border: none;
-            font-family: var(--sans);
-            font-size: 15px;
-            cursor: pointer;
-        }
-        .zoom-controls button:hover {
-            background: var(--menu);
-            color: var(--accent);
-        }
-        .toast {
-            position: absolute;
-            left: 50%;
-            top: 18px;
-            transform: translateX(-50%) translateY(-12px);
-            background: var(--surface);
-            border: 1px solid var(--line);
-            color: var(--text);
-            padding: 8px 14px;
-            border-radius: 8px;
-            font-size: 12px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .2s, transform .2s;
-            z-index: 10;
-            white-space: nowrap;
-            box-shadow: var(--shadow);
-        }
-        .toast.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-        .toast.warn {
-            border-color: var(--warn);
-            color: var(--warn);
-            background: var(--warn-soft);
-        }
+        main { flex:1; display:flex; min-height:0; }
+        .viewport { flex:1; position:relative; overflow:hidden; background:var(--bg); cursor:grab; }
+        .viewport.dragging { cursor:grabbing; }
+        #board, #hoverOverlay { position:absolute; top:0; left:0; image-rendering:pixelated; image-rendering:crisp-edges; transform-origin:0 0; }
+        #board { touch-action:none; box-shadow:0 0 0 1px var(--line), var(--shadow); background:#fff; z-index:1; }
+        #hoverOverlay { pointer-events:none; z-index:2; }
+        .zoom-controls { position:absolute; right:16px; bottom:16px; display:flex; flex-direction:column; gap:1px; border:1px solid var(--line); border-radius:8px; overflow:hidden; z-index:6; background:var(--surface); box-shadow:var(--shadow); }
+        .zoom-controls button { width:32px; height:32px; background:var(--surface); color:var(--text); border:none; font-family:var(--sans); font-size:15px; cursor:pointer; }
+        .zoom-controls button:hover { background:var(--menu); color:var(--accent); }
+        .toast { position:absolute; left:50%; top:18px; transform:translateX(-50%) translateY(-12px); background:var(--surface); border:1px solid var(--line); color:var(--text); padding:8px 14px; border-radius:8px; font-size:12px; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:10; white-space:nowrap; box-shadow:var(--shadow); }
+        .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+        .toast.warn { border-color:var(--warn); color:var(--warn); background:var(--warn-soft); }
 
-        aside {
-            width: 244px;
-            flex-shrink: 0;
-            border-left: 1px solid var(--line);
-            background: var(--menu);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            box-shadow: var(--shadow);
-        }
-        .panel-section {
-            margin: 10px 12px;
-            padding: 12px;
-            border-radius: 10px;
-            background: var(--surface);
-            border: 1px solid var(--line);
-        }
-        .panel-title {
-            font-size: 10px;
-            letter-spacing: .12em;
-            text-transform: uppercase;
-            color: var(--text-dim);
-            margin: 0 0 10px 0;
-            font-weight: 700;
-        }
-        .hud {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-        #loupe {
-            image-rendering: pixelated;
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            flex-shrink: 0;
-        }
-        .hud-coords {
-            font-size: 12px;
-            line-height: 1.7;
-            color: var(--text);
-            font-family: var(--mono);
-        }
-        .hud-coords .dim {
-            color: var(--text-dim);
-            font-family: var(--sans);
-        }
-        .palette {
-            display: grid;
-            grid-template-columns: repeat(6, 1fr);
-            gap: 6px;
-        }
-        .swatch {
-            aspect-ratio: 1;
-            border-radius: 5px;
-            cursor: pointer;
-            position: relative;
-            border: 1px solid var(--line);
-        }
-        .swatch.selected {
-            box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
-        }
-        .swatch.selected::after {
-            content: "✓";
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            color: #000;
-            text-shadow: 0 0 3px rgba(255, 255, 255, .7);
-        }
-        .admin-btn {
-            display: block;
-            width: 100%;
-            margin-top: 8px;
-            padding: 8px 12px;
-            background: var(--menu-2);
-            color: var(--text);
-            border: 1px solid var(--line);
-            border-radius: 6px;
-            cursor: pointer;
-            font-family: var(--sans);
-            font-size: 12px;
-            text-align: center;
-            transition: background .15s;
-        }
-        .admin-btn:hover {
-            background: var(--line);
-            color: var(--accent);
-        }
-        .admin-btn.export-btn {
-            background: var(--accent-soft);
-            border-color: var(--accent);
-            color: var(--accent);
-        }
-        aside::-webkit-scrollbar {
-            width: 8px;
-        }
-        aside::-webkit-scrollbar-thumb {
-            background: var(--menu-2);
-            border-radius: 4px;
-        }
-        @media (max-width:760px) {
-            aside {
-                width: 208px;
-            }
-            .palette {
-                grid-template-columns: repeat(4, 1fr);
-            }
-            .hud {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            h1 {
-                font-size: 17px;
-            }
-        }
+        aside { width:244px; flex-shrink:0; border-left:1px solid var(--line); background:var(--menu); display:flex; flex-direction:column; overflow-y:auto; box-shadow:var(--shadow); }
+        .panel-section { margin:10px 12px; padding:12px; border-radius:10px; background:var(--surface); border:1px solid var(--line); }
+        .panel-title { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-dim); margin:0 0 10px 0; font-weight:700; }
+        .hud { display:flex; gap:12px; align-items:center; }
+        #loupe { image-rendering:pixelated; border:1px solid var(--line); border-radius:6px; flex-shrink:0; }
+        .hud-coords { font-size:12px; line-height:1.7; color:var(--text); font-family:var(--mono); }
+        .hud-coords .dim { color:var(--text-dim); font-family:var(--sans); }
+        .palette { display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
+        .swatch { aspect-ratio:1; border-radius:5px; cursor:pointer; position:relative; border:1px solid var(--line); }
+        .swatch.selected { box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+        .swatch.selected::after { content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:bold; color:#000; text-shadow:0 0 3px rgba(255,255,255,.7); }
+        .admin-btn { display:block; width:100%; margin-top:8px; padding:8px 12px; background:var(--menu-2); color:var(--text); border:1px solid var(--line); border-radius:6px; cursor:pointer; font-family:var(--sans); font-size:12px; text-align:center; transition:background .15s; }
+        .admin-btn:hover { background:var(--line); color:var(--accent); }
+        .admin-btn.export-btn { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); }
+        aside::-webkit-scrollbar { width:8px; }
+        aside::-webkit-scrollbar-thumb { background:var(--menu-2); border-radius:4px; }
+        @media (max-width:760px) { aside { width:208px; } .palette { grid-template-columns:repeat(4,1fr); } .hud { flex-direction:column; align-items:flex-start; } h1 { font-size:17px; } }
     </style>
 </head>
 <body>
@@ -439,10 +164,25 @@
             // Inicializar Firebase
             firebase.initializeApp(firebaseConfig);
             const db = firebase.database();
+            const auth = firebase.auth();
+
+            // ---------- AUTENTICACIÓN ANÓNIMA ----------
+            auth.signInAnonymously().catch(function(error) {
+                console.error("Error al autenticar anónimamente:", error);
+                document.getElementById("syncText").textContent = "Error de autenticación";
+            });
+
+            // Mostrar estado de autenticación en el indicador
+            auth.onAuthStateChanged(function(user) {
+                if (user) {
+                    document.getElementById("syncText").textContent = "Conectado · visible para todos";
+                } else {
+                    document.getElementById("syncText").textContent = "No autenticado";
+                }
+            });
 
             // ---------- CONFIG DEL LIENZO ----------
-            const W = 64,
-                H = 64;
+            const W = 64, H = 64;
             const CELL = 8;
             const COOLDOWN_MS = 4000;
             const boardRef = db.ref('lienzo/board');
@@ -468,29 +208,21 @@
             const charToIdx = c => CHARS.indexOf(c);
 
             function hexToRgba(hex, a) {
-                const v = hex.replace("#", "");
-                const r = parseInt(v.substring(0, 2), 16),
-                    g = parseInt(v.substring(2, 4), 16),
-                    b = parseInt(v.substring(4, 6), 16);
+                const v = hex.replace("#","");
+                const r = parseInt(v.substring(0,2),16), g = parseInt(v.substring(2,4),16), b = parseInt(v.substring(4,6),16);
                 return `rgba(${r},${g},${b},${a})`;
             }
 
             // ---------- ESTADO ----------
-            let board = new Array(W * H).fill(0);
+            let board = new Array(W*H).fill(0);
             let selectedColor = 6;
-            let zoom = 1,
-                panX = 0,
-                panY = 0;
-            let isPointerDown = false,
-                isDragging = false;
-            let startClientX = 0,
-                startClientY = 0,
-                startPanX = 0,
-                startPanY = 0;
+            let zoom = 1, panX = 0, panY = 0;
+            let isPointerDown = false, isDragging = false;
+            let startClientX=0, startClientY=0, startPanX=0, startPanY=0;
             let cooldownUntil = 0;
             let placementCount = 0;
             let hoverCell = null;
-            const THEME = { accent: "#5b8dff", warn: "#ff6f67", emptyCell: "#262a33" };
+            const THEME = { accent:"#5b8dff", warn:"#ff6f67", emptyCell:"#262a33" };
 
             // ---------- DOM ----------
             const canvas = document.getElementById("board");
@@ -514,22 +246,20 @@
             const gridSizeLabel = document.getElementById("gridSizeLabel");
             gridSizeLabel.textContent = W + "×" + H;
 
-            [canvas, overlay].forEach(c => {
-                c.width = W;
-                c.height = H;
-                c.style.width = (W * CELL) + "px";
-                c.style.height = (H * CELL) + "px";
+            [canvas, overlay].forEach(c=>{
+                c.width = W; c.height = H;
+                c.style.width = (W*CELL)+"px"; c.style.height = (H*CELL)+"px";
             });
 
             // ---------- PALETA ----------
-            PALETTE.forEach((c, i) => {
+            PALETTE.forEach((c,i)=>{
                 const sw = document.createElement("div");
-                sw.className = "swatch" + (i === selectedColor ? " selected" : "");
+                sw.className = "swatch" + (i===selectedColor ? " selected":"");
                 sw.style.background = c.hex;
                 sw.title = c.name;
-                sw.addEventListener("click", () => {
+                sw.addEventListener("click", ()=>{
                     selectedColor = i;
-                    document.querySelectorAll(".swatch").forEach(s => s.classList.remove("selected"));
+                    document.querySelectorAll(".swatch").forEach(s=>s.classList.remove("selected"));
                     sw.classList.add("selected");
                     selectedColorNameEl.textContent = c.name;
                     drawHoverOverlay();
@@ -539,114 +269,105 @@
             selectedColorNameEl.textContent = PALETTE[selectedColor].name;
 
             // ---------- RENDER ----------
-            function renderBoard() {
-                for (let y = 0; y < H; y++) {
-                    for (let x = 0; x < W; x++) {
-                        ctx.fillStyle = PALETTE[board[y * W + x]].hex;
-                        ctx.fillRect(x, y, 1, 1);
+            function renderBoard(){
+                for(let y=0;y<H;y++){
+                    for(let x=0;x<W;x++){
+                        ctx.fillStyle = PALETTE[board[y*W+x]].hex;
+                        ctx.fillRect(x,y,1,1);
                     }
                 }
             }
 
-            function applyTransform() {
+            function applyTransform(){
                 const t = `translate(${panX}px, ${panY}px) scale(${zoom})`;
                 canvas.style.transform = t;
                 overlay.style.transform = t;
             }
 
-            function fitToViewport() {
-                const vw = viewport.clientWidth,
-                    vh = viewport.clientHeight;
-                const boardW = W * CELL,
-                    boardH = H * CELL;
-                zoom = Math.min(vw / boardW, vh / boardH) * 0.92;
+            function fitToViewport(){
+                const vw = viewport.clientWidth, vh = viewport.clientHeight;
+                const boardW = W*CELL, boardH = H*CELL;
+                zoom = Math.min(vw/boardW, vh/boardH) * 0.92;
                 zoom = Math.max(0.4, Math.min(zoom, 6));
-                panX = (vw - boardW * zoom) / 2;
-                panY = (vh - boardH * zoom) / 2;
+                panX = (vw - boardW*zoom)/2;
+                panY = (vh - boardH*zoom)/2;
                 applyTransform();
             }
 
-            function drawHoverOverlay() {
-                overlayCtx.clearRect(0, 0, W, H);
-                if (!hoverCell || isDragging) return;
+            function drawHoverOverlay(){
+                overlayCtx.clearRect(0,0,W,H);
+                if(!hoverCell || isDragging) return;
                 const { x, y } = hoverCell;
                 const waiting = Date.now() < cooldownUntil;
                 overlayCtx.fillStyle = hexToRgba(PALETTE[selectedColor].hex, waiting ? 0.32 : 0.6);
                 overlayCtx.fillRect(x, y, 1, 1);
                 overlayCtx.lineWidth = 0.14;
                 overlayCtx.strokeStyle = waiting ? THEME.warn : THEME.accent;
-                overlayCtx.strokeRect(x + 0.07, y + 0.07, 0.86, 0.86);
+                overlayCtx.strokeRect(x+0.07, y+0.07, 0.86, 0.86);
             }
 
             // ---------- ESTADO DE SINCRONIZACIÓN ----------
             let syncResetTimer = null;
-
-            function setSyncState(state) {
+            function setSyncState(state){
                 clearTimeout(syncResetTimer);
                 liveDot.classList.remove("saving", "disconnected");
-                if (state === "connected") {
+                if(state === "connected"){
                     syncText.textContent = "Conectado · visible para todos";
-                } else if (state === "saving") {
+                } else if(state === "saving"){
                     liveDot.classList.add("saving");
                     syncText.textContent = "Guardando tu píxel…";
-                } else if (state === "saved") {
+                } else if(state === "saved"){
                     syncText.textContent = "Guardado · visible para todos";
-                    syncResetTimer = setTimeout(() => setSyncState("connected"), 2500);
-                } else if (state === "error") {
+                    syncResetTimer = setTimeout(()=> setSyncState("connected"), 2500);
+                } else if(state === "error"){
                     liveDot.classList.add("disconnected");
                     syncText.textContent = "Error de conexión";
-                } else if (state === "disconnected") {
+                } else if(state === "disconnected"){
                     liveDot.classList.add("disconnected");
                     syncText.textContent = "Sin conexión";
                 }
             }
 
-            // Monitorizar conexión de Firebase
             db.ref('.info/connected').on('value', snap => {
-                if (snap.val() === true) {
-                    setSyncState("connected");
-                } else {
-                    setSyncState("disconnected");
-                }
+                if(snap.val() === true) setSyncState("connected");
+                else setSyncState("disconnected");
             });
 
             // ---------- TOAST ----------
             let toastTimer = null;
-
-            function showToast(msg, warn) {
+            function showToast(msg, warn){
                 toastEl.textContent = msg;
                 toastEl.classList.toggle("warn", !!warn);
                 toastEl.classList.add("show");
                 clearTimeout(toastTimer);
-                toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
+                toastTimer = setTimeout(()=>toastEl.classList.remove("show"), 2200);
             }
 
-            // ---------- COOLDOWN (local) ----------
-            function tickCooldown() {
+            // ---------- COOLDOWN ----------
+            function tickCooldown(){
                 const remaining = cooldownUntil - Date.now();
-                if (remaining <= 0) {
+                if(remaining <= 0){
                     cooldownTimeEl.textContent = "LISTO";
                     cooldownTimeEl.classList.add("ready");
                 } else {
-                    const s = Math.ceil(remaining / 1000);
-                    cooldownTimeEl.textContent = "0:" + String(s).padStart(2, "0");
+                    const s = Math.ceil(remaining/1000);
+                    cooldownTimeEl.textContent = "0:" + String(s).padStart(2,"0");
                     cooldownTimeEl.classList.remove("ready");
                 }
             }
-            setInterval(() => { tickCooldown();
-                drawHoverOverlay(); }, 250);
+            setInterval(()=>{ tickCooldown(); drawHoverOverlay(); }, 250);
 
-            // ---------- SINCRONIZACIÓN CON FIREBASE ----------
+            // ---------- SINCRONIZACIÓN FIREBASE ----------
             boardRef.on('value', snap => {
                 const val = snap.val();
-                if (val && val.length === W * H) {
-                    const newBoard = val.split("").map(charToIdx).map(v => v < 0 ? 0 : v);
-                    if (newBoard.some((v, i) => v !== board[i])) {
+                if(val && val.length === W*H){
+                    const newBoard = val.split("").map(charToIdx).map(v=>v<0?0:v);
+                    if(newBoard.some((v,i)=>v!==board[i])){
                         board = newBoard;
                         renderBoard();
-                        if (hoverCell) {
+                        if(hoverCell){
                             renderLoupe(hoverCell.x, hoverCell.y);
-                            hoverColorNameEl.textContent = PALETTE[board[hoverCell.y * W + hoverCell.x]].name;
+                            hoverColorNameEl.textContent = PALETTE[board[hoverCell.y*W+hoverCell.x]].name;
                         }
                     }
                 }
@@ -654,53 +375,58 @@
 
             countRef.on('value', snap => {
                 const val = snap.val();
-                if (val !== null) {
-                    placementCount = parseInt(val, 10) || 0;
+                if(val !== null){
+                    placementCount = parseInt(val,10) || 0;
                     placementCountEl.textContent = placementCount.toLocaleString("es-ES");
                 }
             });
 
             activityRef.on('value', snap => {
                 const val = snap.val();
-                if (val) {
-                    try {
+                if(val){
+                    try{
                         const a = typeof val === 'string' ? JSON.parse(val) : val;
                         renderActivityMeta(a);
-                    } catch (e) {}
+                    } catch(e){}
                 }
             });
 
-            function renderActivityMeta(a) {
-                const secs = Math.max(0, Math.round((Date.now() - a.t) / 1000));
-                let when = secs < 60 ? `hace ${secs}s` : `hace ${Math.round(secs / 60)}min`;
+            function renderActivityMeta(a){
+                const secs = Math.max(0, Math.round((Date.now()-a.t)/1000));
+                let when = secs < 60 ? `hace ${secs}s` : `hace ${Math.round(secs/60)}min`;
                 lastActivityMetaEl.textContent = `Última: (${a.x},${a.y}) ${when}`;
             }
 
             // ---------- COLOCAR PÍXEL ----------
-            async function placePixel(x, y) {
+            async function placePixel(x,y){
                 const now = Date.now();
-                if (now < cooldownUntil) {
-                    showToast("Espera tu turno: " + Math.ceil((cooldownUntil - now) / 1000) + "s", true);
+                if(now < cooldownUntil){
+                    showToast("Espera tu turno: " + Math.ceil((cooldownUntil-now)/1000) + "s", true);
                     return;
                 }
+                // Verificar que el usuario está autenticado
+                if(!auth.currentUser){
+                    showToast("Iniciando sesión anónima...", true);
+                    await auth.signInAnonymously();
+                }
 
-                board[y * W + x] = selectedColor;
+                board[y*W+x] = selectedColor;
                 renderBoard();
                 cooldownUntil = now + COOLDOWN_MS;
                 tickCooldown();
                 drawHoverOverlay();
 
                 setSyncState("saving");
-                try {
+                try{
                     await boardRef.set(board.map(idxToChar).join(""));
                     await countRef.transaction(current => (current || 0) + 1);
-                    const activity = { x, y, c: selectedColor, t: Date.now() };
+                    const activity = {x,y,c:selectedColor,t:Date.now()};
                     await activityRef.set(JSON.stringify(activity));
                     setSyncState("saved");
                     showToast(`Píxel colocado en (${x}, ${y})`);
-                } catch (e) {
+                } catch(e){
                     console.error("Error al guardar en Firebase", e);
-                    board[y * W + x] = 0;
+                    board[y*W+x] = 0;
                     renderBoard();
                     cooldownUntil = now;
                     tickCooldown();
@@ -710,197 +436,165 @@
                 }
             }
 
-            // ---------- MAPEO DE COORDENADAS ----------
-            function clientToCell(clientX, clientY) {
+            // ---------- MAPEO ----------
+            function clientToCell(clientX, clientY){
                 const rect = canvas.getBoundingClientRect();
                 const relX = (clientX - rect.left) / rect.width;
                 const relY = (clientY - rect.top) / rect.height;
-                if (relX < 0 || relX >= 1 || relY < 0 || relY >= 1) return null;
-                return { x: Math.floor(relX * W), y: Math.floor(relY * H) };
+                if(relX < 0 || relX >= 1 || relY < 0 || relY >= 1) return null;
+                return { x: Math.floor(relX*W), y: Math.floor(relY*H) };
             }
 
             // ---------- LUPA ----------
             const LOUPE_RADIUS = 3;
-            const LOUPE_CELL = loupe.width / (LOUPE_RADIUS * 2 + 1);
-
-            function renderLoupe(cellX, cellY) {
-                loupeCtx.clearRect(0, 0, loupe.width, loupe.height);
-                for (let dy = -LOUPE_RADIUS; dy <= LOUPE_RADIUS; dy++) {
-                    for (let dx = -LOUPE_RADIUS; dx <= LOUPE_RADIUS; dx++) {
-                        const gx = cellX + dx,
-                            gy = cellY + dy;
+            const LOUPE_CELL = loupe.width / (LOUPE_RADIUS*2+1);
+            function renderLoupe(cellX, cellY){
+                loupeCtx.clearRect(0,0,loupe.width, loupe.height);
+                for(let dy=-LOUPE_RADIUS; dy<=LOUPE_RADIUS; dy++){
+                    for(let dx=-LOUPE_RADIUS; dx<=LOUPE_RADIUS; dx++){
+                        const gx = cellX+dx, gy = cellY+dy;
                         let color = THEME.emptyCell;
-                        if (gx >= 0 && gx < W && gy >= 0 && gy < H) color = PALETTE[board[gy * W + gx]].hex;
+                        if(gx>=0 && gx<W && gy>=0 && gy<H) color = PALETTE[board[gy*W+gx]].hex;
                         loupeCtx.fillStyle = color;
-                        loupeCtx.fillRect((dx + LOUPE_RADIUS) * LOUPE_CELL, (dy + LOUPE_RADIUS) * LOUPE_CELL,
-                            LOUPE_CELL, LOUPE_CELL);
+                        loupeCtx.fillRect((dx+LOUPE_RADIUS)*LOUPE_CELL, (dy+LOUPE_RADIUS)*LOUPE_CELL, LOUPE_CELL, LOUPE_CELL);
                     }
                 }
                 loupeCtx.strokeStyle = THEME.accent;
                 loupeCtx.lineWidth = 2;
-                loupeCtx.strokeRect(LOUPE_RADIUS * LOUPE_CELL + 1, LOUPE_RADIUS * LOUPE_CELL + 1, LOUPE_CELL - 2,
-                    LOUPE_CELL - 2);
+                loupeCtx.strokeRect(LOUPE_RADIUS*LOUPE_CELL+1, LOUPE_RADIUS*LOUPE_CELL+1, LOUPE_CELL-2, LOUPE_CELL-2);
             }
 
-            function clearLoupe() {
-                loupeCtx.clearRect(0, 0, loupe.width, loupe.height);
-                hoverXEl.textContent = "—";
-                hoverYEl.textContent = "—";
+            function clearLoupe(){
+                loupeCtx.clearRect(0,0,loupe.width, loupe.height);
+                hoverXEl.textContent = "—"; hoverYEl.textContent = "—";
                 hoverColorNameEl.textContent = "apunta al lienzo";
                 hoverCell = null;
                 drawHoverOverlay();
             }
 
-            // ---------- EVENTOS DE RATÓN/TÁCTIL ----------
+            // ---------- EVENTOS ----------
             const DRAG_THRESHOLD = 5;
-
-            canvas.addEventListener("pointerdown", (e) => {
-                isPointerDown = true;
-                isDragging = false;
-                startClientX = e.clientX;
-                startClientY = e.clientY;
-                startPanX = panX;
-                startPanY = panY;
+            canvas.addEventListener("pointerdown", (e)=>{
+                isPointerDown = true; isDragging = false;
+                startClientX = e.clientX; startClientY = e.clientY;
+                startPanX = panX; startPanY = panY;
                 canvas.setPointerCapture(e.pointerId);
             });
-
-            canvas.addEventListener("pointermove", (e) => {
-                if (isPointerDown) {
-                    const dx = e.clientX - startClientX,
-                        dy = e.clientY - startClientY;
-                    if (!isDragging && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+            canvas.addEventListener("pointermove", (e)=>{
+                if(isPointerDown){
+                    const dx = e.clientX - startClientX, dy = e.clientY - startClientY;
+                    if(!isDragging && Math.hypot(dx,dy) > DRAG_THRESHOLD){
                         isDragging = true;
                         viewport.classList.add("dragging");
                         drawHoverOverlay();
                     }
-                    if (isDragging) {
-                        panX = startPanX + dx;
-                        panY = startPanY + dy;
+                    if(isDragging){
+                        panX = startPanX + dx; panY = startPanY + dy;
                         applyTransform();
                     }
                 }
                 const cell = clientToCell(e.clientX, e.clientY);
-                if (cell) {
+                if(cell){
                     hoverCell = cell;
-                    hoverXEl.textContent = cell.x;
-                    hoverYEl.textContent = cell.y;
-                    hoverColorNameEl.textContent = PALETTE[board[cell.y * W + cell.x]].name;
+                    hoverXEl.textContent = cell.x; hoverYEl.textContent = cell.y;
+                    hoverColorNameEl.textContent = PALETTE[board[cell.y*W+cell.x]].name;
                     renderLoupe(cell.x, cell.y);
                     drawHoverOverlay();
                 } else {
                     clearLoupe();
                 }
             });
-
-            function endPointer(e) {
-                if (isPointerDown && !isDragging) {
+            function endPointer(e){
+                if(isPointerDown && !isDragging){
                     const cell = clientToCell(e.clientX, e.clientY);
-                    if (cell) placePixel(cell.x, cell.y);
+                    if(cell) placePixel(cell.x, cell.y);
                 }
-                isPointerDown = false;
-                isDragging = false;
+                isPointerDown = false; isDragging = false;
                 viewport.classList.remove("dragging");
                 drawHoverOverlay();
             }
             canvas.addEventListener("pointerup", endPointer);
-            canvas.addEventListener("pointercancel", () => {
-                isPointerDown = false;
-                isDragging = false;
+            canvas.addEventListener("pointercancel", ()=>{
+                isPointerDown = false; isDragging = false;
                 viewport.classList.remove("dragging");
                 drawHoverOverlay();
             });
             canvas.addEventListener("pointerleave", clearLoupe);
-
-            viewport.addEventListener("wheel", (e) => {
+            viewport.addEventListener("wheel", (e)=>{
                 e.preventDefault();
                 const rect = viewport.getBoundingClientRect();
-                const cx = e.clientX - rect.left,
-                    cy = e.clientY - rect.top;
+                const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
                 const prevZoom = zoom;
-                const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-                zoom = Math.max(0.4, Math.min(zoom * factor, 8));
-                panX = cx - (cx - panX) * (zoom / prevZoom);
-                panY = cy - (cy - panY) * (zoom / prevZoom);
+                const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+                zoom = Math.max(0.4, Math.min(zoom*factor, 8));
+                panX = cx - (cx-panX) * (zoom/prevZoom);
+                panY = cy - (cy-panY) * (zoom/prevZoom);
                 applyTransform();
-            }, { passive: false });
-
-            document.getElementById("zoomIn").addEventListener("click", () => {
-                zoom = Math.min(zoom * 1.25, 8);
-                applyTransform();
+            }, {passive:false});
+            document.getElementById("zoomIn").addEventListener("click", ()=>{
+                zoom = Math.min(zoom*1.25, 8); applyTransform();
             });
-            document.getElementById("zoomOut").addEventListener("click", () => {
-                zoom = Math.max(zoom / 1.25, 0.4);
-                applyTransform();
+            document.getElementById("zoomOut").addEventListener("click", ()=>{
+                zoom = Math.max(zoom/1.25, 0.4); applyTransform();
             });
             document.getElementById("zoomFit").addEventListener("click", fitToViewport);
-
-            window.addEventListener("resize", () => {
-                if (zoom < 0.41) fitToViewport();
+            window.addEventListener("resize", ()=>{
+                if(zoom < 0.41) fitToViewport();
             });
 
-            // ---------- EXPORTAR / IMPORTAR / REINICIAR ----------
-            document.getElementById("exportBtn").addEventListener("click", () => {
+            // ---------- ADMIN ----------
+            document.getElementById("exportBtn").addEventListener("click", ()=>{
                 const data = {
-                    version: 1,
-                    width: W,
-                    height: H,
+                    version:1, width:W, height:H,
                     board: board.map(idxToChar).join(""),
                     count: placementCount,
                     exportedAt: new Date().toISOString()
                 };
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = "splace-lienzo-" + new Date().toISOString().slice(0, 10) + ".json";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                a.download = "splace-lienzo-" + new Date().toISOString().slice(0,10) + ".json";
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 showToast("Lienzo exportado como archivo .json");
             });
-
-            document.getElementById("importBtn").addEventListener("click", () => {
+            document.getElementById("importBtn").addEventListener("click", ()=>{
                 document.getElementById("importFile").click();
             });
-
-            document.getElementById("importFile").addEventListener("change", async (e) => {
+            document.getElementById("importFile").addEventListener("change", async (e)=>{
                 const file = e.target.files[0];
-                if (!file) return;
-                try {
+                if(!file) return;
+                try{
                     const text = await file.text();
                     const data = JSON.parse(text);
-                    if (!data.board || data.board.length !== W * H) {
-                        throw new Error("Formato de archivo inválido");
-                    }
-                    board = data.board.split("").map(charToIdx).map(v => v < 0 ? 0 : v);
-                    if (data.count !== undefined) placementCount = data.count;
+                    if(!data.board || data.board.length !== W*H) throw new Error("Formato de archivo inválido");
+                    board = data.board.split("").map(charToIdx).map(v=>v<0?0:v);
+                    if(data.count !== undefined) placementCount = data.count;
                     placementCountEl.textContent = placementCount.toLocaleString("es-ES");
                     renderBoard();
                     await boardRef.set(board.map(idxToChar).join(""));
                     await countRef.set(placementCount);
                     showToast("✅ Lienzo importado y subido a la nube");
-                } catch (err) {
+                } catch(err){
                     showToast("❌ Error al importar: " + err.message, true);
                     console.error(err);
                 }
                 e.target.value = "";
             });
-
-            document.getElementById("resetBtn").addEventListener("click", async () => {
-                if (!confirm("¿Estás seguro de que quieres borrar TODO el lienzo? Esta acción no se puede deshacer."))
-                    return;
-                if (!confirm("Confirmación final: ¿Realmente quieres reiniciar el lienzo a blanco?")) return;
-                board = new Array(W * H).fill(0);
+            document.getElementById("resetBtn").addEventListener("click", async ()=>{
+                if(!confirm("¿Estás seguro de que quieres borrar TODO el lienzo? Esta acción no se puede deshacer.")) return;
+                if(!confirm("Confirmación final: ¿Realmente quieres reiniciar el lienzo a blanco?")) return;
+                board = new Array(W*H).fill(0);
                 placementCount = 0;
                 placementCountEl.textContent = "0";
                 renderBoard();
-                try {
+                try{
                     await boardRef.set(board.map(idxToChar).join(""));
                     await countRef.set(0);
-                    await activityRef.set(JSON.stringify({ x: 0, y: 0, c: 0, t: Date.now() }));
+                    await activityRef.set(JSON.stringify({x:0,y:0,c:0,t:Date.now()}));
                     showToast("🗑️ Lienzo reiniciado");
-                } catch (e) {
+                } catch(e){
                     showToast("Error al reiniciar el lienzo", true);
                 }
             });
