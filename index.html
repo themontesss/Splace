@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Splace — Lienzo colaborativo</title>
+
+    <!-- Firebase compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+
+    <!-- Estilos propios -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <h1><span>S</span>place</h1>
+        </div>
+        <div class="meta">
+            <span>Cuadrícula <b id="gridSizeLabel">1000×1000</b></span>
+            <span>Píxeles colocados <b id="placementCount">—</b></span>
+            <span id="lastActivityMeta">Sin actividad aún</span>
+            <span class="sync-status" id="syncStatus">
+                <span class="live-dot" id="liveDot"></span>
+                <span id="syncText">Conectando…</span>
+            </span>
+        </div>
+        <div class="cooldown-box">
+            <span class="cooldown-label">Próximo píxel</span>
+            <span class="cooldown-time ready" id="cooldownTime">LISTO</span>
+        </div>
+    </header>
+
+    <main>
+        <div class="viewport" id="viewport">
+            <canvas id="board"></canvas>
+            <canvas id="hoverOverlay"></canvas>
+            <div class="zoom-controls">
+                <button id="zoomIn" title="Acercar">+</button>
+                <button id="zoomOut" title="Alejar">−</button>
+                <button id="zoomFit" title="Centrar">⤢</button>
+            </div>
+            <div class="toast" id="toast"></div>
+        </div>
+
+        <aside>
+            <div class="panel-section">
+                <p class="panel-title">Lupa</p>
+                <div class="hud">
+                    <canvas id="loupe" width="84" height="84"></canvas>
+                    <div class="hud-coords">
+                        <div>X <b id="hoverX">—</b></div>
+                        <div>Y <b id="hoverY">—</b></div>
+                        <div class="dim" id="hoverColorName">apunta al lienzo</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <p class="panel-title">Paleta — <span id="selectedColorName">Blanco</span></p>
+                <div class="palette" id="palette"></div>
+            </div>
+
+            <div class="panel-section">
+                <p class="panel-title">🔧 Administración</p>
+                <button class="admin-btn export-btn" id="exportBtn" title="Descargar el lienzo como archivo .json">📥 Exportar lienzo</button>
+                <button class="admin-btn" id="importBtn" title="Cargar un lienzo desde archivo .json">📤 Importar lienzo</button>
+                <button class="admin-btn" id="resetBtn" title="Borrar todo el lienzo (requiere confirmación)">🗑️ Reiniciar lienzo</button>
+                <input type="file" id="importFile" accept=".json" style="display:none;">
+            </div>
+        </aside>
+    </main>
+
+    <!-- Script principal -->
+    <script src="app.js" defer></script>
+</body>
+</html>
