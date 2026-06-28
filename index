@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Splace — Lienzo colaborativo</title>
+<style>
+  :root{
+    --bg:#121317;
+    --surface:#1a1c22;
+    --menu:#1c1f26;
+    --menu-2:#262a33;
+    --line:#30343d;
+    --text:#e9ebee;
+    --text-dim:#8b93a0;
+    --accent:#5b8dff;
+    --accent-soft:#1d2740;
+    --warn:#ff6f67;
+    --warn-soft:#3a1f1f;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.55);
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:var(--sans); overflow:hidden;
+  }
+  body{ display:flex; flex-direction:column; }
+
+  /* ---------- HEADER (menu) ---------- */
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 20px; border-bottom:1px solid var(--line);
+    background:var(--menu); box-shadow:var(--shadow);
+    flex-shrink:0; gap:16px; flex-wrap:wrap; position:relative; z-index:20;
+  }
+  .brand{ display:flex; flex-direction:column; gap:1px; }
+  .eyebrow{
+    font-size:10px; letter-spacing:.14em; color:var(--text-dim);
+    text-transform:uppercase;
+  }
+  h1{
+    margin:0; font-weight:700; font-size:19px; letter-spacing:.01em; color:var(--text);
+  }
+  h1 span{ color:var(--accent); }
+  .meta{
+    font-size:12px; color:var(--text-dim); display:flex; gap:14px; flex-wrap:wrap;
+  }
+  .meta b{ color:var(--text); font-weight:600; }
+
+  .sync-status{ display:flex; align-items:center; gap:6px; }
+  .live-dot{
+    width:7px; height:7px; border-radius:50%; background:#3ecf6e; flex-shrink:0;
+    box-shadow:0 0 0 0 rgba(62,207,110,.6);
+    animation:pulse-dot 2s infinite;
+  }
+  .live-dot.saving{ background:var(--warn); animation:pulse-dot-fast 0.6s infinite; }
+  @keyframes pulse-dot{
+    0%{ box-shadow:0 0 0 0 rgba(62,207,110,.5); }
+    70%{ box-shadow:0 0 0 6px rgba(62,207,110,0); }
+    100%{ box-shadow:0 0 0 0 rgba(62,207,110,0); }
+  }
+  @keyframes pulse-dot-fast{
+    0%{ box-shadow:0 0 0 0 rgba(255,111,103,.6); }
+    70%{ box-shadow:0 0 0 5px rgba(255,111,103,0); }
+    100%{ box-shadow:0 0 0 0 rgba(255,111,103,0); }
+  }
+
+  .cooldown-box{
+    display:flex; flex-direction:column; align-items:flex-end; gap:1px; min-width:90px;
+  }
+  .cooldown-label{ font-size:9px; letter-spacing:.12em; color:var(--text-dim); text-transform:uppercase; }
+  .cooldown-time{
+    font-size:20px; font-weight:700; font-variant-numeric:tabular-nums;
+    color:var(--warn); font-family:var(--mono);
+  }
+  .cooldown-time.ready{ color:var(--accent); }
+
+  /* ---------- LAYOUT ---------- */
+  main{ flex:1; display:flex; min-height:0; }
+  .viewport{
+    flex:1; position:relative; overflow:hidden; background:var(--bg);
+    cursor:grab;
+  }
+  .viewport.dragging{ cursor:grabbing; }
+  #board, #hoverOverlay{
+    position:absolute; top:0; left:0; image-rendering:pixelated; image-rendering:crisp-edges;
+    transform-origin:0 0;
+  }
+  #board{ touch-action:none; box-shadow:0 0 0 1px var(--line), var(--shadow); background:#fff; z-index:1; }
+  #hoverOverlay{ pointer-events:none; z-index:2; }
+
+  .zoom-controls{
+    position:absolute; right:16px; bottom:16px; display:flex; flex-direction:column;
+    gap:1px; border:1px solid var(--line); border-radius:8px; overflow:hidden; z-index:6;
+    background:var(--surface); box-shadow:var(--shadow);
+  }
+  .zoom-controls button{
+    width:32px; height:32px; background:var(--surface); color:var(--text); border:none;
+    font-family:var(--sans); font-size:15px; cursor:pointer;
+  }
+  .zoom-controls button:hover{ background:var(--menu); color:var(--accent); }
+
+  .toast{
+    position:absolute; left:50%; top:18px; transform:translateX(-50%) translateY(-12px);
+    background:var(--surface); border:1px solid var(--line); color:var(--text);
+    padding:8px 14px; border-radius:8px; font-size:12px; opacity:0; pointer-events:none;
+    transition:opacity .2s, transform .2s; z-index:10; white-space:nowrap;
+    box-shadow:var(--shadow);
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.warn{ border-color:var(--warn); color:var(--warn); background:var(--warn-soft); }
+
+  /* ---------- SIDE PANEL (menu) ---------- */
+  aside{
+    width:244px; flex-shrink:0; border-left:1px solid var(--line); background:var(--menu);
+    display:flex; flex-direction:column; overflow-y:auto; box-shadow:var(--shadow);
+  }
+  .panel-section{
+    margin:10px 12px; padding:14px; border-radius:10px; background:var(--surface);
+    border:1px solid var(--line);
+  }
+  .panel-title{
+    font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--text-dim);
+    margin:0 0 10px 0; font-weight:700;
+  }
+
+  /* loupe / HUD */
+  .hud{ display:flex; gap:12px; align-items:center; }
+  #loupe{ image-rendering:pixelated; border:1px solid var(--line); border-radius:6px; flex-shrink:0; }
+  .hud-coords{ font-size:12px; line-height:1.7; color:var(--text); font-family:var(--mono); }
+  .hud-coords .dim{ color:var(--text-dim); font-family:var(--sans); }
+
+  /* palette */
+  .palette{ display:grid; grid-template-columns:repeat(6,1fr); gap:6px; }
+  .swatch{
+    aspect-ratio:1; border-radius:5px; cursor:pointer; position:relative;
+    border:1px solid var(--line);
+  }
+  .swatch.selected{ box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+  .swatch.selected::after{
+    content:"✓"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:bold; color:#000; text-shadow:0 0 3px rgba(255,255,255,.7);
+  }
+
+  aside::-webkit-scrollbar{ width:8px; }
+  aside::-webkit-scrollbar-thumb{ background:var(--menu-2); border-radius:4px; }
+
+  @media (max-width:760px){
+    aside{ width:208px; }
+    .palette{ grid-template-columns:repeat(4,1fr); }
+    .hud{ flex-direction:column; align-items:flex-start; }
+    h1{ font-size:17px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <span class="eyebrow">Lienzo colaborativo</span>
+    <h1>SPLA<span>C</span>E</h1>
+  </div>
+  <div class="meta">
+    <span>Cuadrícula <b id="gridSizeLabel">64×64</b></span>
+    <span>Píxeles colocados <b id="placementCount">—</b></span>
+    <span id="lastActivityMeta">Sin actividad aún</span>
+    <span class="sync-status" id="syncStatus"><span class="live-dot" id="liveDot"></span><span id="syncText">Guardado en vivo · visible para todos</span></span>
+  </div>
+  <div class="cooldown-box">
+    <span class="cooldown-label">Próximo píxel</span>
+    <span class="cooldown-time ready" id="cooldownTime">LISTO</span>
+  </div>
+</header>
+
+<main>
+  <div class="viewport" id="viewport">
+    <canvas id="board"></canvas>
+    <canvas id="hoverOverlay"></canvas>
+    <div class="zoom-controls">
+      <button id="zoomIn" title="Acercar">+</button>
+      <button id="zoomOut" title="Alejar">−</button>
+      <button id="zoomFit" title="Centrar">⤢</button>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <aside>
+    <div class="panel-section">
+      <p class="panel-title">Lupa</p>
+      <div class="hud">
+        <canvas id="loupe" width="84" height="84"></canvas>
+        <div class="hud-coords">
+          <div>X <b id="hoverX">—</b></div>
+          <div>Y <b id="hoverY">—</b></div>
+          <div class="dim" id="hoverColorName">apunta al lienzo</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section" style="margin-bottom:12px;">
+      <p class="panel-title">Paleta — <span id="selectedColorName">Blanco</span></p>
+      <div class="palette" id="palette"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- CONFIG ----------
+  const W = 64, H = 64;
+  const CELL = 8;
+  const COOLDOWN_MS = 4000;
+  const POLL_MS = 3000;
+  const BOARD_KEY = "lienzo-board-v1";
+  const COUNT_KEY = "lienzo-placement-count-v1";
+  const ACTIVITY_KEY = "lienzo-last-activity-v1";
+  const COOLDOWN_KEY = "lienzo-cooldown-until";
+
+  const PALETTE = [
+    {hex:"#FFFFFF", name:"Blanco"},      {hex:"#E4E4E4", name:"Gris claro"},
+    {hex:"#888888", name:"Gris"},        {hex:"#222222", name:"Negro"},
+    {hex:"#FFA7D1", name:"Rosa"},        {hex:"#E50000", name:"Rojo"},
+    {hex:"#E59500", name:"Naranja"},     {hex:"#A06A42", name:"Marrón"},
+    {hex:"#E5D900", name:"Amarillo"},    {hex:"#94E044", name:"Lima"},
+    {hex:"#02BE01", name:"Verde"},       {hex:"#00D3DD", name:"Turquesa"},
+    {hex:"#0083C7", name:"Azul cielo"},  {hex:"#0000EA", name:"Azul"},
+    {hex:"#CF6EE4", name:"Lila"},        {hex:"#820080", name:"Morado"},
+    {hex:"#3690EA", name:"Azul medio"},  {hex:"#00CCC0", name:"Cian"},
+    {hex:"#493AC1", name:"Índigo"},      {hex:"#6A5CFF", name:"Violeta"},
+    {hex:"#FF3881", name:"Magenta"},     {hex:"#FF4500", name:"Bermellón"},
+    {hex:"#FFFFC0", name:"Crema"},       {hex:"#9C6926", name:"Tierra"}
+  ];
+  const CHARS = "0123456789abcdefghijklmn";
+  const idxToChar = i => CHARS[i];
+  const charToIdx = c => CHARS.indexOf(c);
+
+  function hexToRgba(hex, a){
+    const v = hex.replace("#","");
+    const r = parseInt(v.substring(0,2),16), g = parseInt(v.substring(2,4),16), b = parseInt(v.substring(4,6),16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // ---------- STATE ----------
+  let board = new Array(W*H).fill(0);
+  let selectedColor = 6;
+  let zoom = 1, panX = 0, panY = 0;
+  let isPointerDown = false, isDragging = false;
+  let startClientX=0, startClientY=0, startPanX=0, startPanY=0;
+  let cooldownUntil = 0;
+  let placementCount = 0;
+  let hoverCell = null;
+  const THEME = { accent:"#5b8dff", warn:"#ff6f67", emptyCell:"#262a33" };
+
+  // ---------- DOM ----------
+  const canvas = document.getElementById("board");
+  const ctx = canvas.getContext("2d");
+  const overlay = document.getElementById("hoverOverlay");
+  const overlayCtx = overlay.getContext("2d");
+  const viewport = document.getElementById("viewport");
+  const loupe = document.getElementById("loupe");
+  const loupeCtx = loupe.getContext("2d");
+  const toastEl = document.getElementById("toast");
+  const cooldownTimeEl = document.getElementById("cooldownTime");
+  const paletteEl = document.getElementById("palette");
+  const selectedColorNameEl = document.getElementById("selectedColorName");
+  const hoverXEl = document.getElementById("hoverX");
+  const hoverYEl = document.getElementById("hoverY");
+  const hoverColorNameEl = document.getElementById("hoverColorName");
+  const placementCountEl = document.getElementById("placementCount");
+  const lastActivityMetaEl = document.getElementById("lastActivityMeta");
+  const syncText = document.getElementById("syncText");
+  const liveDot = document.getElementById("liveDot");
+  const gridSizeLabel = document.getElementById("gridSizeLabel");
+  gridSizeLabel.textContent = W + "×" + H;
+
+  [canvas, overlay].forEach(c=>{
+    c.width = W; c.height = H;
+    c.style.width = (W*CELL)+"px";
+    c.style.height = (H*CELL)+"px";
+  });
+
+  // ---------- PALETTE UI ----------
+  PALETTE.forEach((c,i)=>{
+    const sw = document.createElement("div");
+    sw.className = "swatch" + (i===selectedColor ? " selected":"");
+    sw.style.background = c.hex;
+    sw.title = c.name;
+    sw.addEventListener("click", ()=>{
+      selectedColor = i;
+      document.querySelectorAll(".swatch").forEach(s=>s.classList.remove("selected"));
+      sw.classList.add("selected");
+      selectedColorNameEl.textContent = c.name;
+      drawHoverOverlay();
+    });
+    paletteEl.appendChild(sw);
+  });
+  selectedColorNameEl.textContent = PALETTE[selectedColor].name;
+
+  // ---------- RENDER ----------
+  function renderBoard(){
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        ctx.fillStyle = PALETTE[board[y*W+x]].hex;
+        ctx.fillRect(x,y,1,1);
+      }
+    }
+  }
+
+  function applyTransform(){
+    const t = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    canvas.style.transform = t;
+    overlay.style.transform = t;
+  }
+
+  function fitToViewport(){
+    const vw = viewport.clientWidth, vh = viewport.clientHeight;
+    const boardW = W*CELL, boardH = H*CELL;
+    zoom = Math.min(vw/boardW, vh/boardH) * 0.92;
+    zoom = Math.max(0.4, Math.min(zoom, 6));
+    panX = (vw - boardW*zoom)/2;
+    panY = (vh - boardH*zoom)/2;
+    applyTransform();
+  }
+
+  // ---------- HOVER PREVIEW (celda antes de pintar) ----------
+  function drawHoverOverlay(){
+    overlayCtx.clearRect(0,0,W,H);
+    if(!hoverCell || isDragging) return;
+    const { x, y } = hoverCell;
+    const waiting = Date.now() < cooldownUntil;
+    overlayCtx.fillStyle = hexToRgba(PALETTE[selectedColor].hex, waiting ? 0.32 : 0.6);
+    overlayCtx.fillRect(x, y, 1, 1);
+    overlayCtx.lineWidth = 0.14;
+    overlayCtx.strokeStyle = waiting ? THEME.warn : THEME.accent;
+    overlayCtx.strokeRect(x+0.07, y+0.07, 0.86, 0.86);
+  }
+
+  // ---------- SYNC STATUS ----------
+  let syncResetTimer = null;
+  function setSyncState(state){
+    clearTimeout(syncResetTimer);
+    if(state === "saving"){
+      liveDot.classList.add("saving");
+      syncText.textContent = "Guardando tu píxel…";
+    } else if(state === "saved"){
+      liveDot.classList.remove("saving");
+      syncText.textContent = "Guardado · visible para todos";
+      syncResetTimer = setTimeout(()=>{ syncText.textContent = "Guardado en vivo · visible para todos"; }, 2500);
+    } else if(state === "error"){
+      liveDot.classList.remove("saving");
+      syncText.textContent = "Error al guardar, reintentando…";
+    } else {
+      liveDot.classList.remove("saving");
+      syncText.textContent = "Guardado en vivo · visible para todos";
+    }
+  }
+
+  // ---------- TOAST ----------
+  let toastTimer = null;
+  function showToast(msg, warn){
+    toastEl.textContent = msg;
+    toastEl.classList.toggle("warn", !!warn);
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>toastEl.classList.remove("show"), 2200);
+  }
+
+  // ---------- COOLDOWN ----------
+  function tickCooldown(){
+    const remaining = cooldownUntil - Date.now();
+    if(remaining <= 0){
+      cooldownTimeEl.textContent = "LISTO";
+      cooldownTimeEl.classList.add("ready");
+    } else {
+      const s = Math.ceil(remaining/1000);
+      cooldownTimeEl.textContent = "0:" + String(s).padStart(2,"0");
+      cooldownTimeEl.classList.remove("ready");
+    }
+  }
+  setInterval(()=>{ tickCooldown(); drawHoverOverlay(); }, 250);
+
+  // ---------- STORAGE HELPERS ----------
+  async function loadCooldown(){
+    try{
+      const r = await window.storage.get(COOLDOWN_KEY, false);
+      if(r && r.value) cooldownUntil = parseInt(r.value,10) || 0;
+    }catch(e){ /* no previous cooldown */ }
+    tickCooldown();
+  }
+
+  async function loadCount(){
+    try{
+      const r = await window.storage.get(COUNT_KEY, true);
+      placementCount = r && r.value ? (parseInt(r.value,10)||0) : 0;
+    }catch(e){ placementCount = 0; }
+    placementCountEl.textContent = placementCount.toLocaleString("es-ES");
+  }
+
+  async function loadActivity(){
+    try{
+      const r = await window.storage.get(ACTIVITY_KEY, true);
+      if(r && r.value){
+        const a = JSON.parse(r.value);
+        renderActivityMeta(a);
+      }
+    }catch(e){ /* none yet */ }
+  }
+
+  function renderActivityMeta(a){
+    const secs = Math.max(0, Math.round((Date.now()-a.t)/1000));
+    let when = secs < 60 ? `hace ${secs}s` : `hace ${Math.round(secs/60)}min`;
+    lastActivityMetaEl.textContent = `Última: (${a.x},${a.y}) ${when}`;
+  }
+
+  async function loadBoard(){
+    try{
+      const r = await window.storage.get(BOARD_KEY, true);
+      if(r && r.value && r.value.length === W*H){
+        board = r.value.split("").map(charToIdx).map(v=>v<0?0:v);
+      } else {
+        throw new Error("invalid board, reinitializing");
+      }
+    }catch(e){
+      board = new Array(W*H).fill(0);
+      try{ await window.storage.set(BOARD_KEY, board.map(idxToChar).join(""), true); }
+      catch(e2){ console.error("No se pudo inicializar el lienzo compartido", e2); }
+    }
+    renderBoard();
+  }
+
+  async function pollBoard(){
+    try{
+      const r = await window.storage.get(BOARD_KEY, true);
+      if(r && r.value && r.value.length === W*H){
+        board = r.value.split("").map(charToIdx).map(v=>v<0?0:v);
+        renderBoard();
+      }
+      await loadActivity();
+    }catch(e){ /* silent — keep last known board */ }
+  }
+  setInterval(pollBoard, POLL_MS);
+
+  // ---------- PLACE PIXEL ----------
+  async function placePixel(x,y){
+    const now = Date.now();
+    if(now < cooldownUntil){
+      showToast("Espera tu turno: " + Math.ceil((cooldownUntil-now)/1000) + "s", true);
+      return;
+    }
+    board[y*W+x] = selectedColor;
+    renderBoard();
+    cooldownUntil = now + COOLDOWN_MS;
+    tickCooldown();
+    drawHoverOverlay();
+
+    showToast(`Píxel colocado en (${x}, ${y})`);
+
+    try{
+      await window.storage.set(COOLDOWN_KEY, String(cooldownUntil), false);
+    }catch(e){ console.error("No se pudo guardar el cooldown", e); }
+
+    try{
+      let latest = board;
+      try{
+        const r = await window.storage.get(BOARD_KEY, true);
+        if(r && r.value && r.value.length === W*H){
+          latest = r.value.split("").map(charToIdx).map(v=>v<0?0:v);
+        }
+      }catch(e){ /* usamos el board local */ }
+      latest[y*W+x] = selectedColor;
+      board = latest;
+      renderBoard();
+      setSyncState("saving");
+      await window.storage.set(BOARD_KEY, board.map(idxToChar).join(""), true);
+      setSyncState("saved");
+    }catch(e){
+      console.error("No se pudo guardar el lienzo compartido", e);
+      showToast("No se pudo guardar tu píxel, inténtalo de nuevo", true);
+      setSyncState("error");
+    }
+
+    try{
+      placementCount += 1;
+      await window.storage.set(COUNT_KEY, String(placementCount), true);
+      placementCountEl.textContent = placementCount.toLocaleString("es-ES");
+    }catch(e){ /* contador es solo decorativo */ }
+
+    try{
+      const activity = {x,y,c:selectedColor,t:now};
+      await window.storage.set(ACTIVITY_KEY, JSON.stringify(activity), true);
+      renderActivityMeta(activity);
+    }catch(e){ /* opcional */ }
+  }
+
+  // ---------- COORD MAPPING ----------
+  function clientToCell(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const relX = (clientX - rect.left) / rect.width;
+    const relY = (clientY - rect.top) / rect.height;
+    if(relX < 0 || relX >= 1 || relY < 0 || relY >= 1) return null;
+    return { x: Math.floor(relX*W), y: Math.floor(relY*H) };
+  }
+
+  // ---------- LOUPE ----------
+  const LOUPE_RADIUS = 3;
+  const LOUPE_CELL = loupe.width / (LOUPE_RADIUS*2+1);
+  function renderLoupe(cellX, cellY){
+    loupeCtx.clearRect(0,0,loupe.width, loupe.height);
+    for(let dy=-LOUPE_RADIUS; dy<=LOUPE_RADIUS; dy++){
+      for(let dx=-LOUPE_RADIUS; dx<=LOUPE_RADIUS; dx++){
+        const gx = cellX+dx, gy = cellY+dy;
+        let color = THEME.emptyCell;
+        if(gx>=0 && gx<W && gy>=0 && gy<H) color = PALETTE[board[gy*W+gx]].hex;
+        loupeCtx.fillStyle = color;
+        loupeCtx.fillRect((dx+LOUPE_RADIUS)*LOUPE_CELL, (dy+LOUPE_RADIUS)*LOUPE_CELL, LOUPE_CELL, LOUPE_CELL);
+      }
+    }
+    loupeCtx.strokeStyle = THEME.accent;
+    loupeCtx.lineWidth = 2;
+    loupeCtx.strokeRect(LOUPE_RADIUS*LOUPE_CELL+1, LOUPE_RADIUS*LOUPE_CELL+1, LOUPE_CELL-2, LOUPE_CELL-2);
+  }
+
+  function clearLoupe(){
+    loupeCtx.clearRect(0,0,loupe.width, loupe.height);
+    hoverXEl.textContent = "—"; hoverYEl.textContent = "—";
+    hoverColorNameEl.textContent = "apunta al lienzo";
+    hoverCell = null;
+    drawHoverOverlay();
+  }
+
+  // ---------- POINTER / DRAG / CLICK ----------
+  const DRAG_THRESHOLD = 5;
+
+  canvas.addEventListener("pointerdown", (e)=>{
+    isPointerDown = true; isDragging = false;
+    startClientX = e.clientX; startClientY = e.clientY;
+    startPanX = panX; startPanY = panY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+
+  canvas.addEventListener("pointermove", (e)=>{
+    if(isPointerDown){
+      const dx = e.clientX - startClientX, dy = e.clientY - startClientY;
+      if(!isDragging && Math.hypot(dx,dy) > DRAG_THRESHOLD){
+        isDragging = true;
+        viewport.classList.add("dragging");
+        drawHoverOverlay();
+      }
+      if(isDragging){
+        panX = startPanX + dx; panY = startPanY + dy;
+        applyTransform();
+      }
+    }
+    const cell = clientToCell(e.clientX, e.clientY);
+    if(cell){
+      hoverCell = cell;
+      hoverXEl.textContent = cell.x; hoverYEl.textContent = cell.y;
+      hoverColorNameEl.textContent = PALETTE[board[cell.y*W+cell.x]].name;
+      renderLoupe(cell.x, cell.y);
+      drawHoverOverlay();
+    } else {
+      clearLoupe();
+    }
+  });
+
+  function endPointer(e){
+    if(isPointerDown && !isDragging){
+      const cell = clientToCell(e.clientX, e.clientY);
+      if(cell) placePixel(cell.x, cell.y);
+    }
+    isPointerDown = false; isDragging = false;
+    viewport.classList.remove("dragging");
+    drawHoverOverlay();
+  }
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", ()=>{ isPointerDown=false; isDragging=false; viewport.classList.remove("dragging"); drawHoverOverlay(); });
+  canvas.addEventListener("pointerleave", clearLoupe);
+
+  viewport.addEventListener("wheel", (e)=>{
+    e.preventDefault();
+    const rect = viewport.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const prevZoom = zoom;
+    const factor = e.deltaY < 0 ? 1.15 : 1/1.15;
+    zoom = Math.max(0.4, Math.min(zoom*factor, 8));
+    panX = cx - (cx-panX) * (zoom/prevZoom);
+    panY = cy - (cy-panY) * (zoom/prevZoom);
+    applyTransform();
+  }, {passive:false});
+
+  document.getElementById("zoomIn").addEventListener("click", ()=>{
+    zoom = Math.min(zoom*1.25, 8); applyTransform();
+  });
+  document.getElementById("zoomOut").addEventListener("click", ()=>{
+    zoom = Math.max(zoom/1.25, 0.4); applyTransform();
+  });
+  document.getElementById("zoomFit").addEventListener("click", fitToViewport);
+
+  window.addEventListener("resize", ()=>{
+    if(zoom < 0.41) fitToViewport();
+  });
+
+  // ---------- INIT ----------
+  async function init(){
+    fitToViewport();
+    await loadCooldown();
+    await loadCount();
+    await loadBoard();
+    await loadActivity();
+    setInterval(()=>{
+      window.storage.get(ACTIVITY_KEY, true).then(r=>{
+        if(r && r.value) renderActivityMeta(JSON.parse(r.value));
+      }).catch(()=>{});
+    }, 5000);
+  }
+  init();
+
+})();
+</script>
+</body>
+</html>
